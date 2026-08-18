@@ -12,7 +12,7 @@
     .key-actions{display:flex;align-items:center;gap:9px;flex-shrink:0}.key-verify{min-height:39px;padding:0 13px;border:1px solid #166edd;border-radius:10px;color:#fff;background:#1879f6;font-size:13px}.key-verify:disabled{opacity:.66;cursor:wait}@media(max-width:560px){.key-actions{width:100%}.key-verify{flex:1}}
   </style>
   <style>
-    .solution-actions{display:grid;grid-column:1/-1;grid-template-columns:1fr 1fr;gap:10px;margin-top:2px}.solution-button{min-height:44px;padding:0 16px;border:1px solid #d4e6fa;border-radius:12px;font:inherit;font-size:14px;font-weight:800;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s}.solution-button:hover{transform:translateY(-2px);box-shadow:0 9px 18px #1f75cb18}.written-solution{color:#1b6ec6;background:#f3f9ff}.video-solution{color:#8397ae;background:#f7f9fc;cursor:not-allowed}.written-solution.is-disabled{color:#93a3b5;background:#f7f9fc;pointer-events:none}@media(max-width:480px){.solution-actions{grid-template-columns:1fr}.solution-button{min-height:48px}}
+    .solution-actions{display:grid;grid-column:1/-1;grid-template-columns:1fr 1fr;gap:10px;margin-top:2px}.solution-button{min-height:44px;padding:0 16px;border:1px solid #d4e6fa;border-radius:12px;font:inherit;font-size:14px;font-weight:800;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s}.solution-button:hover{transform:translateY(-2px);box-shadow:0 9px 18px #1f75cb18}.written-solution{color:#1b6ec6;background:#f3f9ff}.video-solution{color:#8397ae;background:#f7f9fc;cursor:not-allowed}.video-solution.is-active{color:#fff;background:linear-gradient(108deg,#1489ff,#1266e9);box-shadow:0 10px 21px #1478ff45;cursor:pointer}.written-solution.is-disabled,.video-solution.is-disabled{color:#93a3b5;background:#f7f9fc;box-shadow:none;pointer-events:none}@media(max-width:480px){.solution-actions{grid-template-columns:1fr}.solution-button{min-height:48px}}
   </style>
 </head>
 <body>
@@ -79,13 +79,32 @@
       if(!actionArea||!shareButton)return;
       const solutionActions=document.createElement('div');
       solutionActions.className='solution-actions';
-      solutionActions.innerHTML='<a class="solution-button written-solution" target="_blank" rel="noopener">文字题解 ↗</a><button class="solution-button video-solution" type="button" disabled>视频题解 · 即将更新</button>';
+      solutionActions.innerHTML='<a class="solution-button written-solution" target="_blank" rel="noopener">文字题解 ↗</a><a class="solution-button video-solution" target="_blank" rel="noopener">视频题解 · 即将更新</a>';
       actionArea.insertBefore(solutionActions,shareButton);
       const writtenButton=solutionActions.querySelector('.written-solution');
-      const solutionUrl=writtenSolutionUrls[dateKey];
+      const videoButton=solutionActions.querySelector('.video-solution');
       if(!pair){solutionActions.hidden=true;return}
+      const [,,,writtenSolutionOverride='',videoSolutionOverride='']=pair;
+      const solutionUrl=writtenSolutionOverride||writtenSolutionUrls[dateKey];
       if(solutionUrl){writtenButton.href=solutionUrl}else{writtenButton.classList.add('is-disabled');writtenButton.textContent='文字题解 · 待更新';writtenButton.setAttribute('aria-disabled','true')}
+      if(videoSolutionOverride){videoButton.href=videoSolutionOverride;videoButton.classList.add('is-active');videoButton.textContent='视频题解 ↗'}else{videoButton.classList.add('is-disabled');videoButton.setAttribute('aria-disabled','true')}
+      window.LEC_WRITTEN_SOLUTION_URLS=writtenSolutionUrls;
     })();
+  </script>
+  <script>
+    const solutionEditorFields=document.createElement('div');
+    solutionEditorFields.className='editor-field';
+    solutionEditorFields.innerHTML='<label for="editWrittenSolution">文字题解链接</label><input id="editWrittenSolution" type="url" inputmode="url" placeholder="https://www.kdocs.cn/l/…">';
+    const videoEditorField=document.createElement('div');
+    videoEditorField.className='editor-field';
+    videoEditorField.innerHTML='<label for="editVideoSolution">视频题解链接</label><input id="editVideoSolution" type="url" inputmode="url" placeholder="https://www.bilibili.com/video/…">';
+    const editorGrid=document.querySelector('.editor-grid');
+    const appIdEditorField=document.getElementById('editAppId').closest('.editor-field');
+    editorGrid.insertBefore(solutionEditorFields,appIdEditorField);
+    editorGrid.insertBefore(videoEditorField,appIdEditorField);
+    const editWrittenSolution=document.getElementById('editWrittenSolution');
+    const editVideoSolution=document.getElementById('editVideoSolution');
+    const isOptionalHttpUrl=value=>{const url=value.trim();if(!url)return true;try{const parsed=new URL(url);return parsed.protocol==='https:'||parsed.protocol==='http:'}catch{return false}};
   </script>
   <script>
     const REPO='17hwliao/Lec-daily-problem',BRANCH='main',modal=document.getElementById('editorOverlay'),openEditor=document.getElementById('openEditor'),closeEditor=document.getElementById('closeEditor'),editBasic=document.getElementById('editBasic'),editAdvanced=document.getElementById('editAdvanced'),editDate=document.getElementById('editDate'),editAuthor=document.getElementById('editAuthor'),editAppId=document.getElementById('editAppId'),editKey=document.getElementById('editKey'),verifyKey=document.getElementById('verifyKey'),publishPrototype=document.getElementById('publishPrototype'),keyOk=document.getElementById('keyOk'),pubResult=document.getElementById('pubResult');
@@ -93,7 +112,7 @@
     const isLuogu=v=>/^https:\/\/www\.luogu\.com\.cn\/problem\/[A-Za-z0-9]+\/?$/.test(v.trim());
     const nextUnscheduledDate=()=>{const latest=Object.keys(problemDays).sort().at(-1),next=new Date(`${latest}T00:00:00`);next.setDate(next.getDate()+1);return fmt(next)};
     const resetAuthorization=()=>{editorAuthorized=false;keyOk.classList.remove('show');editorUpdate()};
-    const editorUpdate=()=>{const ready=editorAuthorized&&isLuogu(editBasic.value)&&isLuogu(editAdvanced.value)&&editDate.value&&editAuthor.value.trim();publishPrototype.disabled=!ready;publishPrototype.classList.toggle('ready',Boolean(ready))};
+    const editorUpdate=()=>{const ready=editorAuthorized&&isLuogu(editBasic.value)&&isLuogu(editAdvanced.value)&&editDate.value&&editAuthor.value.trim()&&isOptionalHttpUrl(editWrittenSolution.value)&&isOptionalHttpUrl(editVideoSolution.value);publishPrototype.disabled=!ready;publishPrototype.classList.toggle('ready',Boolean(ready))};
     const bytesToBase64=bytes=>{let binary='';for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(binary)};
     const textToBase64=text=>bytesToBase64(new TextEncoder().encode(text));
     const base64ToText=value=>new TextDecoder().decode(Uint8Array.from(atob(value.replace(/\s/g,'')),char=>char.charCodeAt(0)));
@@ -110,6 +129,61 @@
     openEditor.onclick=()=>{modal.classList.add('show');modal.setAttribute('aria-hidden','false')};closeEditor.onclick=()=>{modal.classList.remove('show');modal.setAttribute('aria-hidden','true')};modal.addEventListener('click',event=>{if(event.target===modal)closeEditor.click()});[editBasic,editAdvanced,editDate,editAuthor].forEach(input=>input.addEventListener('input',editorUpdate));[editAppId,editKey].forEach(input=>input.addEventListener('input',resetAuthorization));editKey.addEventListener('change',resetAuthorization);
     verifyKey.onclick=async()=>{verifyKey.disabled=true;verifyKey.textContent='验证中…';resetAuthorization();try{await issueInstallationToken();editorAuthorized=true;keyOk.classList.add('show');editorUpdate();toast('GitHub App 私钥验证成功')}catch(error){toast(error.message||'私钥验证失败')}finally{verifyKey.disabled=false;verifyKey.textContent='验证私钥'}};
     publishPrototype.onclick=async()=>{if(!editorAuthorized)return;publishPrototype.disabled=true;publishPrototype.textContent='正在提交…';pubResult.classList.remove('show');try{const token=await issueInstallationToken(),current=await github(`/repos/${REPO}/contents/index.html?ref=${BRANCH}`,token),source=base64ToText(current.content),basic=editBasic.value.trim().split('/').filter(Boolean).at(-1),advanced=editAdvanced.value.trim().split('/').filter(Boolean).at(-1),targetDate=editDate.value,author=editAuthor.value.trim(),updated=updateProblemSource(source,targetDate,basic,advanced,author);await github(`/repos/${REPO}/contents/index.html`,token,{method:'PUT',body:{message:`chore: ${updated.overwrite?'update':'add'} daily problems for ${targetDate}`,content:textToBase64(updated.source),sha:current.sha,branch:BRANCH}});problemDays[targetDate]=[basic,advanced,author];pubResult.textContent=`已${updated.overwrite?'覆盖':'新增'} ${targetDate} 的题目，并提交到 main。GitHub Pages 将自动重新部署。`;pubResult.classList.add('show');publishPrototype.textContent='已提交';toast('题目已提交，等待网站更新')}catch(error){publishPrototype.textContent='发布题目';editorUpdate();toast(error.message||'提交失败；仓库未被修改')}};
+  </script>
+  <script>
+    const updateProblemSourceWithSolutions=(source,date,basic,advanced,author,writtenSolution,videoSolution)=>{
+      const declaration=/const problemDays = \{([\s\S]*?)\n\s*\};/;
+      const match=source.match(declaration);
+      if(!match)throw new Error('未找到题库数据，已停止提交以保护文件');
+      const entry=`[${JSON.stringify(basic)},${JSON.stringify(advanced)},${JSON.stringify(author)},${JSON.stringify(writtenSolution)},${JSON.stringify(videoSolution)}]`;
+      const entryPattern=new RegExp(`(['"])${escapeRegex(date)}\\1\\s*:\\s*\\[[^\\]]*\\]`);
+      const body=match[1];
+      const overwrite=entryPattern.test(body);
+      const updatedBody=overwrite?body.replace(entryPattern,`'${date}': ${entry}`):`${body.trimEnd()}${body.trimEnd().endsWith(',')?'':','}\n      '${date}': ${entry}`;
+      const updatedDeclaration=`const problemDays = {${updatedBody}\n    };`;
+      return {source:source.slice(0,match.index)+updatedDeclaration+source.slice(match.index+match[0].length),overwrite};
+    };
+    const fillEditorForExistingDate=()=>{
+      const existing=problemDays[editDate.value];
+      if(!existing)return;
+      editBasic.value=existing[0]?`https://www.luogu.com.cn/problem/${existing[0]}`:'';
+      editAdvanced.value=existing[1]?`https://www.luogu.com.cn/problem/${existing[1]}`:'';
+      editAuthor.value=existing[2]||'donghedd';
+      editWrittenSolution.value=existing[3]||window.LEC_WRITTEN_SOLUTION_URLS?.[editDate.value]||'';
+      editVideoSolution.value=existing[4]||'';
+      editorUpdate();
+    };
+    [editWrittenSolution,editVideoSolution].forEach(input=>input.addEventListener('input',editorUpdate));
+    editDate.addEventListener('change',fillEditorForExistingDate);
+    publishPrototype.onclick=async()=>{
+      if(!editorAuthorized)return;
+      const writtenSolution=editWrittenSolution.value.trim();
+      const videoSolution=editVideoSolution.value.trim();
+      if(!isOptionalHttpUrl(writtenSolution)||!isOptionalHttpUrl(videoSolution)){toast('题解链接需为完整的 http 或 https 地址');editorUpdate();return}
+      publishPrototype.disabled=true;
+      publishPrototype.textContent='正在提交…';
+      pubResult.classList.remove('show');
+      try{
+        const token=await issueInstallationToken();
+        const current=await github(`/repos/${REPO}/contents/index.html?ref=${BRANCH}`,token);
+        const source=base64ToText(current.content);
+        const basic=editBasic.value.trim().split('/').filter(Boolean).at(-1);
+        const advanced=editAdvanced.value.trim().split('/').filter(Boolean).at(-1);
+        const targetDate=editDate.value;
+        const author=editAuthor.value.trim();
+        const updated=updateProblemSourceWithSolutions(source,targetDate,basic,advanced,author,writtenSolution,videoSolution);
+        await github(`/repos/${REPO}/contents/index.html`,token,{method:'PUT',body:{message:`chore: ${updated.overwrite?'update':'add'} daily problems and solutions for ${targetDate}`,content:textToBase64(updated.source),sha:current.sha,branch:BRANCH}});
+        problemDays[targetDate]=[basic,advanced,author,writtenSolution,videoSolution];
+        pubResult.textContent=`已${updated.overwrite?'覆盖':'新增'} ${targetDate} 的题目与题解，并提交到 main。GitHub Pages 将自动重新部署。`;
+        pubResult.classList.add('show');
+        publishPrototype.textContent='已提交';
+        toast('题目与题解已提交，等待网站更新');
+      }catch(error){
+        publishPrototype.textContent='发布题目';
+        editorUpdate();
+        toast(error.message||'提交失败；仓库未被修改');
+      }
+    };
   </script>
 </body>
 </html>
